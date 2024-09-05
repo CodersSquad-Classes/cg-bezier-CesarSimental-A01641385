@@ -38,7 +38,6 @@ def get_args():
 
     return args
 
-bezier_image = None
 
 def main():
     # 引数解析 #################################################################
@@ -181,7 +180,7 @@ def main():
                     keypoint_classifier_labels[hand_sign_id],
                     point_history_classifier_labels[most_common_fg_id[0][0]],
                 )
-
+                
         else:
             point_history.append([0, 0])
 
@@ -191,8 +190,9 @@ def main():
         for point in bezier_ctrl_points:
             cv.circle(debug_image, point, 10, (0,255,0), -1)
 
-        if (bezier_ctrl_points) == 4:
-            debug_image = draw_bezier_line(debug_image, bezier_ctrl_points)
+        if len(bezier_ctrl_points) == 4:
+            debug_image = render_bezier_curve(debug_image, bezier_ctrl_points)
+
 
         # 画面反映 #############################################################
         cv.imshow('Hand Gesture Recognition', debug_image)
@@ -514,12 +514,40 @@ def draw_bounding_rect(use_brect, image, brect):
 bezier_ctrl_points = []
 open_hand = True
 
-def draw_bezier_line(debug_image, bezier_ctrl_points):
-    # work here
-    # implement below bezier's algorithm here
-    # use cv.circle function to draw the calculated bezier points
-    # https://talks.obedmr.com/content/computer-graphics/math-fundamentals/src/opengl/bezier.cpp
-    return debug_image
+import math
+import numpy as np
+import cv2 as cv
+
+def compute_binomial_coefficients(order):
+    binomials = []
+    for index in range(order + 1):
+        binomials.append(math.comb(order, index))
+    return binomials
+
+def render_bezier_curve(image, control_points):
+    order = len(control_points) - 1
+    binomials = compute_binomial_coefficients(order)
+
+    # Set curve resolution
+    resolution = 1500
+
+    for t in np.linspace(0, 1, resolution):
+
+        bezier_pos = np.array([0.0, 0.0])
+
+        for i in range(order + 1):
+            # Calculate Bernstein polynomial
+            bernstein_term = binomials[i] * ((1 - t) ** (order - i)) * (t ** i)
+            bezier_pos += bernstein_term * np.array(control_points[i])
+
+        # Convert the calculated point to integers for drawing
+        pixel_pos = tuple(bezier_pos.astype(int))
+
+        # Draw the point on the image
+        cv.circle(image, pixel_pos, 1, (55, 0, 255), -1)
+
+    return image
+
 
 def get_bezier_ctrl_points(image, brect, handedness, hand_sign_text,
                       finger_gesture_text):
@@ -534,15 +562,13 @@ def get_bezier_ctrl_points(image, brect, handedness, hand_sign_text,
     if "Open" in hand_sign_text:
         open_hand = True
     if "Close" in hand_sign_text:
-        if open_hand:
-            if len(bezier_ctrl_points) < 4:
-                for point in bezier_ctrl_points:
-                    dist = euclidian_distance(mid_point, point)
-                    if dist <= 50:
-                        return
-                bezier_ctrl_points.append(mid_point)
+        if len(bezier_ctrl_points) < 4:
+            for point in bezier_ctrl_points:
+                dist = euclidian_distance(mid_point, point)
+                if dist <= 50:
+                    return
+            bezier_ctrl_points.append(mid_point)
 
-            open_hand = False
 
     print(bezier_ctrl_points)
 
